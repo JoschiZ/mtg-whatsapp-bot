@@ -1,6 +1,7 @@
 const axios = require("axios");
 const qrcode = require("qrcode-terminal");
 const { Client, LocalAuth, MessageMedia } = require("whatsapp-web.js");
+const registerCardOfTheDay = require("./cardOfTheDay");
 
 const client = new Client({
   authStrategy: new LocalAuth(),
@@ -15,6 +16,7 @@ client.on("qr", (qr) => {
 
 client.on("ready", () => {
   console.log("✅ Bot ist bereit!");
+  registerCardOfTheDay(client);
 });
 
 client.on("message", async (message) => {
