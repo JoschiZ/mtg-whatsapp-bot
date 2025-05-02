@@ -1,0 +1,9 @@
+{
+  "chatId": "1234567890-987654321@g.us",
+  "schedule": "15 17 * * *",
+  "puppeteerExecutablePath": {
+    "windows": null,
+    "linux": "/usr/bin/chromium-browser"
+  },
+  "prefix": "--mtg "
+}

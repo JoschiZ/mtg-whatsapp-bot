@@ -1,12 +1,21 @@
-const axios = require("axios");
-const qrcode = require("qrcode-terminal");
+const config = require("./config.json");
+const os = require("os");
+const isLinux = os.platform() === "linux";
+
+const puppeteerPath = isLinux
+  ? config.puppeteerExecutablePath.linux
+  : config.puppeteerExecutablePath.windows;
+
 const { Client, LocalAuth, MessageMedia } = require("whatsapp-web.js");
+const qrcode = require("qrcode-terminal");
+const axios = require("axios");
 const registerCardOfTheDay = require("./cardOfTheDay");
 
 const client = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: {
-    args: ["--no-sandbox"],
+    executablePath: puppeteerPath || undefined,
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
   },
 });
 
@@ -16,11 +25,15 @@ client.on("qr", (qr) => {
 
 client.on("ready", () => {
   console.log("✅ Bot ist bereit!");
-  registerCardOfTheDay(client);
+  registerCardOfTheDay(client, config.chatId, config.schedule);
 });
 
 client.on("message", async (message) => {
-  const match = message.body.match(/--mtg\s+([^\n\r.,;!?]+)/i);
+  if (message.from !== config.chatId) return;
+
+  const match = message.body.match(
+    new RegExp(`${config.prefix}\\s*([^\\n\\r.,;!?]+)`, "i")
+  );
   if (!match) return;
 
   const cardName = match[1].trim();
@@ -30,26 +43,20 @@ client.on("message", async (message) => {
 
   const cardData = await getCardFromScryfall(cardName);
 
-  if (!cardData || (cardData && cardData.suggestions)) {
-    if (cardData && cardData.suggestions) {
-      await message.reply(
-        `❌ Karte nicht gefunden. Meintest du vielleicht:\n${cardData.suggestions}`
-      );
-    } else {
-      await message.reply("❌ Karte nicht gefunden.");
-    }
+  if (!cardData || cardData.suggestions) {
+    const reply = cardData?.suggestions
+      ? `❌ Karte nicht gefunden. Meintest du:\n${cardData.suggestions}`
+      : "❌ Karte nicht gefunden.";
+    await message.reply(reply);
     return;
   }
 
-  // 💶 MKM Prices + Scryfall-Link
   const prices = [];
   if (cardData.prices.eur) prices.push(`💶 €${cardData.prices.eur}`);
   if (cardData.prices.eur_foil)
     prices.push(`✨ Foil: €${cardData.prices.eur_foil}`);
-
   const caption = `${prices.join(" / ")}\n\n🔗 ${cardData.scryfall_uri}`;
 
-  // 🖼️ Bild senden (auch bei doppelseitigen Karten)
   if (cardData.image_uris) {
     const media = await MessageMedia.fromUrl(cardData.image_uris.normal);
     await message.reply(media, message.from, { caption });
@@ -72,29 +79,16 @@ async function getCardFromScryfall(cardName) {
     const res = await axios.get(url);
     return res.data;
   } catch (err) {
-    // IF ERROR
-    if (err.response && err.response.status === 404) {
-      console.log(
-        "🔎 Fuzzy-Treffer nicht eindeutig – Vorschläge werden gesucht..."
-      );
-
-      try {
-        const searchUrl = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(
-          cardName
-        )}`;
-        const res = await axios.get(searchUrl);
-
-        if (res.data.data && res.data.data.length > 0) {
-          const suggestions = res.data.data
-            .slice(0, 5)
-            .map((card) => `- ${card.name}`)
-            .join("\n");
-
-          return { suggestions };
-        }
-      } catch (searchErr) {
-        console.error("Fehler bei Scryfall-Suche:", searchErr.message);
-      }
+    if (err.response?.status === 404) {
+      const searchUrl = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(
+        cardName
+      )}`;
+      const res = await axios.get(searchUrl);
+      const suggestions = res.data.data
+        ?.slice(0, 5)
+        .map((card) => `- ${card.name}`)
+        .join("\n");
+      return { suggestions };
     }
 
     console.error("❌ Scryfall-Fehler:", err.message);
