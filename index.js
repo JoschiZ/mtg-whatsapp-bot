@@ -1,15 +1,21 @@
-const config = require("./config.json");
+require("dotenv").config();
 const os = require("os");
-const isLinux = os.platform() === "linux";
+const config = require("./config.json");
 
-const puppeteerPath = isLinux
-  ? config.puppeteerExecutablePath.linux
-  : config.puppeteerExecutablePath.windows;
+const puppeteerPath =
+  os.platform() === "linux"
+    ? config.puppeteerExecutablePath.linux
+    : config.puppeteerExecutablePath.windows;
 
 const { Client, LocalAuth, MessageMedia } = require("whatsapp-web.js");
 const qrcode = require("qrcode-terminal");
 const axios = require("axios");
-const registerCardOfTheDay = require("./cardOfTheDay");
+const {
+  registerCardOfTheDay,
+  __testOnly_sendCardOfTheDay,
+} = require("./cardOfTheDay");
+
+const allowedChatId = process.env.WHATSAPP_ALLOWED_CHAT_ID;
 
 const client = new Client({
   authStrategy: new LocalAuth(),
@@ -25,12 +31,22 @@ client.on("qr", (qr) => {
 
 client.on("ready", () => {
   console.log("✅ Bot ist bereit!");
-  registerCardOfTheDay(client, config.chatId, config.schedule);
+  registerCardOfTheDay(client, allowedChatId, config.schedule);
 });
 
 client.on("message", async (message) => {
-  if (message.from !== config.chatId) return;
+  if (message.from !== allowedChatId) return;
 
+  const msg = message.body.trim().toLowerCase();
+
+  // 🧪 Manueller Test der Karte des Tages
+  if (msg === "--test-cron") {
+    console.log("🧪 Test: Karte des Tages wird manuell ausgelöst.");
+    await __testOnly_sendCardOfTheDay(client, allowedChatId);
+    return;
+  }
+
+  // 💬 MTG-Kartenbefehl
   const match = message.body.match(
     new RegExp(`${config.prefix}\\s*([^\\n\\r.,;!?]+)`, "i")
   );
