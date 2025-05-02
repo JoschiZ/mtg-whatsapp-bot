@@ -35,6 +35,8 @@ client.on("ready", () => {
 });
 
 client.on("message", async (message) => {
+  console.log("📩 Nachricht erhalten:", message.body);
+  console.log("📩 Nachricht von:", message.from);
   if (message.from !== allowedChatId) return;
 
   const msg = message.body.trim().toLowerCase();
