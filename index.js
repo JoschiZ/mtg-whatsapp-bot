@@ -31,6 +31,7 @@ client.on("qr", (qr) => {
 
 client.on("ready", () => {
   console.log("✅ Bot ist bereit!");
+  client.sendMessage(allowedChatId, "🤖 MTG Bot ist gestartet und bereit!");
   registerCardOfTheDay(client, allowedChatId, config.schedule);
 });
 

@@ -1,5 +1,5 @@
 {
-  "schedule": "34 18 * * *",
+  "schedule": "30 9 * * *",
   "puppeteerExecutablePath": {
     "windows": null,
     "linux": "/usr/bin/chromium-browser"
