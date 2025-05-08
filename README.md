@@ -1,61 +1,141 @@
-# MTG WhatsApp Bot
+# 📦 MTG WhatsApp Bot
 
-A lightweight WhatsApp bot that responds to `--mtg [card name]` commands with Magic: The Gathering card information using the [Scryfall API](https://scryfall.com/docs/api).
+A WhatsApp bot for Magic: The Gathering – just send `[[CardName]]` in your chat and get images and card info using the Scryfall API.
 
-## ✨ Features
+> 🛠 Developed by **Karl v. Bonin | CodeLax IT GmbH**
 
-- Command-based card lookup: `--mtg Card Name`
-- Returns:
-  - 💶 Euro prices (normal + foil)
-  - 🖼️ Card image (front/back supported)
-  - 🔗 Direct link to the card on Scryfall
-- Intelligent fuzzy search suggestions for typos
+---
 
-## 🚀 Requirements
+## ⚙️ Features
 
-- Node.js v16 or later
-- A WhatsApp account (linked once via QR code)
+- 📷 Automatic image replies for `[[CardName]]`
+- 💶 Prices in EUR via Cardmarket
+- 🧪 `[[test]]` → triggers the current "Card of the Day"
+- 🎲 `[[random]]` → sends a truly random MTG card
+- ❌ Fuzzy suggestions on typos – reply with numbers to select
+- ⏱ Daily scheduled post (e.g. every day at 9:30 AM)
+- 🖥️ Works on Windows, Linux, Raspberry Pi
 
-## ⚙️ Installation
+---
+
+## 💬 Chat Usage
+
+### 🔎 Get cards:
+
+```
+[[Lightning Bolt]]
+I love [[Forest]] and [[Lightning Helix]]
+```
+
+### 🧪 Test triggers:
+
+```
+[[test]]      → manually trigger "Card of the Day"
+[[random]]    → get a random MTG card
+```
+
+### ❌ Suggestions for typos:
+
+```
+[[Lightnig Boltt]] → Bot replies:
+
+1. Lightning Bolt  
+2. Lightning Strike  
+...
+
+Just reply with 1, 2 or 3 – **as a reply to the bot's message!**
+```
+
+---
+
+## 🚀 Setup
+
+### 1. Install dependencies
 
 ```bash
-git clone https://github.com/your-username/mtg-whatsapp-bot.git
-cd mtg-whatsapp-bot
 npm install
+```
+
+### 2. Create `.env` file
+
+```env
+WHATSAPP_ALLOWED_CHAT_ID=1234567890-123456@g.us
+```
+
+> This is the group or individual chat ID – find it via logging when sending a message.
+
+---
+
+### 3. Configure `config.json`
+
+```json
+{
+  "schedule": "30 9 * * *",
+  "puppeteerExecutablePath": {
+    "windows": null,
+    "linux": "/usr/bin/chromium-browser"
+  },
+  "cardSearch": {
+    "maxSuggestions": 5,
+    "validForSeconds": 120
+  }
+}
+```
+
+---
+
+### 4. Start the bot
+
+```bash
 node index.js
 ```
 
-After starting, scan the QR code with your WhatsApp app to link the bot.
+Or permanently via PM2:
 
-## 💬 Usage
+```bash
+npm install -g pm2
+pm2 start index.js --name mtgbot
+pm2 save
+pm2 startup
+```
 
-Send a message in any chat or group:
+---
+
+## 🧪 Run tests
+
+```bash
+npm install --save-dev jest
+npm test
+```
+
+> Tests are in `/test` – covering caching, Scryfall lookup & syntax parsing.
+
+---
+
+## 📁 Project Structure
 
 ```
---mtg ragavan
+/mtg-whatsapp-bot
+├── index.js
+├── cardOfTheDay.js
+├── suggestionCache.js
+├── config.json
+├── .env
+└── test/
 ```
 
-The bot will respond with:
+---
 
-- Euro price
-- Card image
-- Scryfall link
+## 🔒 Security
 
-If the card isn't found, it will suggest up to 5 close matches.
+- The bot is limited to a single allowed chat (`.env`)
+- No external access
+- No message content logging (unless you explicitly add it)
 
-## 🔐 Privacy
+---
 
-Authentication sessions are stored locally in `.wwebjs_auth/` and are excluded from version control via `.gitignore`.
+## 🤝 License & Author
 
-## 📄 License & Disclaimer
-
-MIT License  
-© Karl v. Bonin | CodeLax IT GmbH
-
-This bot is provided as-is for private or non-commercial use. It is not affiliated with or endorsed by Wizards of the Coast or Scryfall.
-
-#### TODOS:
-
-- Add this to a rapsberry PI with its own number
-- Can sync with the local store cardmarket/storage and tell if the card is available
-- Test
+> Developed by **Karl v. Bonin**  
+> © CodeLax IT GmbH – 2025  
+> Free for personal / community use. No commercial redistribution.

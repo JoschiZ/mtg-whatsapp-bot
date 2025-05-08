@@ -14,7 +14,6 @@ const {
   registerCardOfTheDay,
   __testOnly_sendCardOfTheDay,
 } = require("./cardOfTheDay");
-
 const suggestionCache = require("./suggestionCache");
 
 const allowedChatId = process.env.WHATSAPP_ALLOWED_CHAT_ID;
@@ -38,26 +37,14 @@ client.on("ready", () => {
 });
 
 client.on("message", async (message) => {
-  console.log("📩 Nachricht erhalten:", message.body);
-  console.log("📩 Nachricht von:", message.from);
-
   if (message.from !== allowedChatId) return;
 
-  const msg = message.body.trim().toLowerCase();
+  const msg = message.body.trim();
 
-  // 🧪 Test-Trigger für Card of the Day
-  if (msg === config.prefixes.testCron) {
-    console.log("🧪 Test: Karte des Tages wird manuell ausgelöst.");
-    await __testOnly_sendCardOfTheDay(client, allowedChatId);
-    return;
-  }
-
-  // 🔢 Auswahlantwort auf Vorschlagsnachricht
+  // 🔢 Antwort mit Zahl auf Vorschlagsliste
   if (/^\d+$/.test(msg)) {
     const entry = suggestionCache.get(message.from);
-
-    if (!entry) return;
-    if (!message.hasQuotedMsg) return;
+    if (!entry || !message.hasQuotedMsg) return;
 
     const quoted = await message.getQuotedMessage();
     if (quoted.id._serialized !== entry.replyToId) return;
@@ -70,7 +57,6 @@ client.on("message", async (message) => {
 
     const cardName = entry.cards[index];
     suggestionCache.delete(message.from);
-    console.log("🔄 Auswahl gewählt:", cardName);
 
     const cardData = await getCardFromScryfall(cardName);
     if (!cardData) {
@@ -82,42 +68,56 @@ client.on("message", async (message) => {
     return;
   }
 
-  // 💬 MTG-Kartensuche
-  const match = message.body.match(
-    new RegExp(`${config.prefixes.getCard}\\s*([^\\n\\r.,;!?]+)`, "i")
+  // 📦 Suche nach [[...]] Einträgen
+  const matches = msg.match(/\[\[([^\[\]]+)\]\]/g);
+  if (!matches) return;
+
+  const items = matches.map((m) =>
+    m.replace("[[", "").replace("]]", "").trim()
   );
-  if (!match) return;
 
-  const cardName = match[1].trim();
-  if (!cardName) return;
-
-  console.log("🔍 Suche Karte:", cardName);
-
-  const cardData = await getCardFromScryfall(cardName);
-
-  if (!cardData || cardData.suggestions) {
-    if (cardData?.suggestions) {
-      const suggestionsArray = cardData.suggestions
-        .split("\n")
-        .map((line) => line.replace("- ", ""))
-        .slice(0, suggestionCache.maxSuggestions);
-
-      const formatted = suggestionsArray
-        .map((s, i) => `${i + 1}. ${s}`)
-        .join("\n");
-
-      const sent = await message.reply(
-        `❌ Karte nicht gefunden. Meintest du:\n${formatted}\n\nAntwort mit einer Zahl (1–${suggestionsArray.length}), **als Antwort auf diese Nachricht**.`
-      );
-
-      suggestionCache.set(message.from, suggestionsArray, sent.id._serialized);
-    } else {
-      await message.reply("❌ Karte nicht gefunden.");
+  for (const item of items) {
+    if (item.toLowerCase() === "test") {
+      await __testOnly_sendCardOfTheDay(client, allowedChatId);
+      continue;
     }
-    return;
-  }
 
-  await sendCardImage(message, cardData);
+    if (item.toLowerCase() === "random") {
+      const card = await getRandomCard();
+      await sendCardImage(message, card);
+      continue;
+    }
+
+    const cardData = await getCardFromScryfall(item);
+
+    if (!cardData || cardData.suggestions) {
+      if (cardData?.suggestions) {
+        const suggestionsArray = cardData.suggestions
+          .split("\n")
+          .map((line) => line.replace("- ", ""))
+          .slice(0, suggestionCache.maxSuggestions);
+
+        const formatted = suggestionsArray
+          .map((s, i) => `${i + 1}. ${s}`)
+          .join("\n");
+
+        const sent = await message.reply(
+          `❌ Karte nicht gefunden. Meintest du:\n${formatted}\n\nAntwort mit einer Zahl (1–${suggestionsArray.length}), **als Antwort auf diese Nachricht**.`
+        );
+
+        suggestionCache.set(
+          message.from,
+          suggestionsArray,
+          sent.id._serialized
+        );
+      } else {
+        await message.reply(`❌ Karte nicht gefunden: ${item}`);
+      }
+      continue;
+    }
+
+    await sendCardImage(message, cardData);
+  }
 });
 
 async function getCardFromScryfall(cardName) {
@@ -142,6 +142,13 @@ async function getCardFromScryfall(cardName) {
     console.error("❌ Scryfall-Fehler:", err.message);
     return null;
   }
+}
+
+async function getRandomCard() {
+  const res = await axios.get(
+    "https://api.scryfall.com/cards/random?q=game:paper+lang:en+-type:basic+-set:unh+-set:ugl+-set:ust+-set:unf"
+  );
+  return res.data;
 }
 
 async function sendCardImage(message, cardData) {
