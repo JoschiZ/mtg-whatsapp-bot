@@ -15,6 +15,8 @@ const {
   __testOnly_sendCardOfTheDay,
 } = require("./cardOfTheDay");
 
+const suggestionCache = require("./suggestionCache");
+
 const allowedChatId = process.env.WHATSAPP_ALLOWED_CHAT_ID;
 
 const client = new Client({
@@ -38,20 +40,51 @@ client.on("ready", () => {
 client.on("message", async (message) => {
   console.log("📩 Nachricht erhalten:", message.body);
   console.log("📩 Nachricht von:", message.from);
+
   if (message.from !== allowedChatId) return;
 
   const msg = message.body.trim().toLowerCase();
 
-  // 🧪 Manueller Test der Karte des Tages
-  if (msg === "--test-cron") {
+  // 🧪 Test-Trigger für Card of the Day
+  if (msg === config.prefixes.testCron) {
     console.log("🧪 Test: Karte des Tages wird manuell ausgelöst.");
     await __testOnly_sendCardOfTheDay(client, allowedChatId);
     return;
   }
 
-  // 💬 MTG-Kartenbefehl
+  // 🔢 Auswahlantwort auf Vorschlagsnachricht
+  if (/^\d+$/.test(msg)) {
+    const entry = suggestionCache.get(message.from);
+
+    if (!entry) return;
+    if (!message.hasQuotedMsg) return;
+
+    const quoted = await message.getQuotedMessage();
+    if (quoted.id._serialized !== entry.replyToId) return;
+
+    const index = parseInt(msg, 10) - 1;
+    if (!entry.cards[index]) {
+      await message.reply("❌ Ungültige Auswahl.");
+      return;
+    }
+
+    const cardName = entry.cards[index];
+    suggestionCache.delete(message.from);
+    console.log("🔄 Auswahl gewählt:", cardName);
+
+    const cardData = await getCardFromScryfall(cardName);
+    if (!cardData) {
+      await message.reply("❌ Karte konnte nicht geladen werden.");
+      return;
+    }
+
+    await sendCardImage(message, cardData);
+    return;
+  }
+
+  // 💬 MTG-Kartensuche
   const match = message.body.match(
-    new RegExp(`${config.prefix}\\s*([^\\n\\r.,;!?]+)`, "i")
+    new RegExp(`${config.prefixes.getCard}\\s*([^\\n\\r.,;!?]+)`, "i")
   );
   if (!match) return;
 
@@ -63,13 +96,55 @@ client.on("message", async (message) => {
   const cardData = await getCardFromScryfall(cardName);
 
   if (!cardData || cardData.suggestions) {
-    const reply = cardData?.suggestions
-      ? `❌ Karte nicht gefunden. Meintest du:\n${cardData.suggestions}`
-      : "❌ Karte nicht gefunden.";
-    await message.reply(reply);
+    if (cardData?.suggestions) {
+      const suggestionsArray = cardData.suggestions
+        .split("\n")
+        .map((line) => line.replace("- ", ""))
+        .slice(0, suggestionCache.maxSuggestions);
+
+      const formatted = suggestionsArray
+        .map((s, i) => `${i + 1}. ${s}`)
+        .join("\n");
+
+      const sent = await message.reply(
+        `❌ Karte nicht gefunden. Meintest du:\n${formatted}\n\nAntwort mit einer Zahl (1–${suggestionsArray.length}), **als Antwort auf diese Nachricht**.`
+      );
+
+      suggestionCache.set(message.from, suggestionsArray, sent.id._serialized);
+    } else {
+      await message.reply("❌ Karte nicht gefunden.");
+    }
     return;
   }
 
+  await sendCardImage(message, cardData);
+});
+
+async function getCardFromScryfall(cardName) {
+  try {
+    const url = `https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(
+      cardName
+    )}`;
+    const res = await axios.get(url);
+    return res.data;
+  } catch (err) {
+    if (err.response?.status === 404) {
+      const searchUrl = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(
+        cardName
+      )}`;
+      const res = await axios.get(searchUrl);
+      const suggestions = res.data.data
+        ?.map((card) => `- ${card.name}`)
+        .join("\n");
+      return { suggestions };
+    }
+
+    console.error("❌ Scryfall-Fehler:", err.message);
+    return null;
+  }
+}
+
+async function sendCardImage(message, cardData) {
   const prices = [];
   if (cardData.prices.eur) prices.push(`💶 €${cardData.prices.eur}`);
   if (cardData.prices.eur_foil)
@@ -87,31 +162,6 @@ client.on("message", async (message) => {
     await message.reply(caption);
   } else {
     await message.reply("⚠️ Bild konnte nicht geladen werden.");
-  }
-});
-
-async function getCardFromScryfall(cardName) {
-  try {
-    const url = `https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(
-      cardName
-    )}`;
-    const res = await axios.get(url);
-    return res.data;
-  } catch (err) {
-    if (err.response?.status === 404) {
-      const searchUrl = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(
-        cardName
-      )}`;
-      const res = await axios.get(searchUrl);
-      const suggestions = res.data.data
-        ?.slice(0, 5)
-        .map((card) => `- ${card.name}`)
-        .join("\n");
-      return { suggestions };
-    }
-
-    console.error("❌ Scryfall-Fehler:", err.message);
-    return null;
   }
 }
 

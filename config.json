@@ -4,5 +4,14 @@
     "windows": null,
     "linux": "/usr/bin/chromium-browser"
   },
-  "prefix": "--mtg "
+  "prefixes": {
+    "getCard": "--mtg",
+    "testCron": "--test-cron",
+    "status": "--status",
+    "help": "--help"
+  },
+  "cardSearch": {
+    "maxSuggestions": 5,
+    "validForSeconds": 120
+  }
 }
