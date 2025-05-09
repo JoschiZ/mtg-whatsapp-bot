@@ -15,6 +15,7 @@ const {
   __testOnly_sendCardOfTheDay,
 } = require("./cardOfTheDay");
 const suggestionCache = require("./suggestionCache");
+const {set} = require("./suggestionCache");
 
 const allowedChatId = process.env.WHATSAPP_ALLOWED_CHAT_ID;
 
@@ -83,26 +84,22 @@ client.on("message", async (message) => {
     return;
   }
 
-  const matches = msg.match(/\[\[([^\[\]]+)\]\]/g);
-  if (!matches) return;
-
-  const items = matches.map((m) => m.replace("[[", "").replace("]]", "").trim());
+  const items = getCommandsFromMessage(msg)
 
   for (const item of items) {
-    const lower = item.toLowerCase();
 
-    if (lower === "test") {
+    if (item === "test") {
       await __testOnly_sendCardOfTheDay(client, allowedChatId);
       continue;
     }
 
-    if (lower === "random") {
+    if (item === "random") {
       const card = await getRandomCard();
       await sendCardImage(message, card);
       continue;
     }
 
-    if (["help", "hilfe"].includes(lower)) {
+    if (["help", "hilfe"].includes(item)) {
       await message.reply(getHelpMessage());
       continue;
     }
@@ -180,4 +177,24 @@ async function sendCardImage(message, cardData) {
   }
 }
 
+/**
+ * Extracts all possible commands from an message body
+ * @param message the full whatsapp message body
+ * @returns {Set<string>} a set of commands contained in the message
+ */
+function getCommandsFromMessage(message) {
+  const matches = message.match(/\[\[([^\[\]]+)\]\]/g);
+  if (!matches) return new Set();
+
+
+  const rawItems = matches.map((m) =>
+      m.replace("[[", "").replace("]]", "").trim().toLowerCase()
+  );
+  return new Set(rawItems);
+}
+
 client.initialize();
+
+module.exports = {
+  getCommandsFromMessage
+}

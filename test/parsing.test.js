@@ -1,20 +1,28 @@
+const index = require("../index");
+
+
 function extractCardName(msg) {
+
   const match = msg.match(/--mtg\s+([^\n\r.,;!?]+)/i);
   return match ? match[1].trim() : null;
 }
 
 test("Extracts card from basic command", () => {
-  expect(extractCardName("--mtg ragavan")).toBe("ragavan");
+  const command = index.getCommandsFromMessage("[[ragavan]]").values().next().value;
+  expect(command).toBe("ragavan");
 });
 
 test("Extracts card from sentence", () => {
-  expect(extractCardName("hey guys --mtg hazoret.")).toBe("hazoret");
+  const command = index.getCommandsFromMessage("hey guys --mtg [[hazoret]].").values().next().value
+  expect(command).toBe("hazoret");
 });
 
-test("Extracts only first word if followed by text", () => {
-  expect(extractCardName("suche --mtg forest... danke")).toBe("forest");
+test("Returns empty set if no command", () => {
+  const commands = index.getCommandsFromMessage("nothing here {{[[]")
+  expect(commands.size).toBe(0);
 });
 
-test("Returns null if no command", () => {
-  expect(extractCardName("no mtg here")).toBeNull();
+test("expect commands to be unique per message", () => {
+  const commands = index.getCommandsFromMessage("hey guys [[hazoret]]. [[Hazoret]]")
+  expect(commands.size).toBe(1);
 });
