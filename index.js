@@ -18,6 +18,21 @@ const suggestionCache = require("./suggestionCache");
 
 const allowedChatId = process.env.WHATSAPP_ALLOWED_CHAT_ID;
 
+function getHelpMessage() {
+  return `
+👋 *MTG Bot – Available Commands*
+
+📦 [[CardName]] – Shows the image and price of a card  
+🎲 [[random]] – Sends a random MTG card  
+🧪 [[test]] – Manually triggers the daily card  
+❓ [[help]] or [[hilfe]] – Shows this message again  
+❌ If not found: reply with 1–5 (as response to bot message)
+
+💬 Example:
+[[Lightning Bolt]] and [[Forest]]
+`.trim();
+}
+
 const client = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: {
@@ -33,6 +48,7 @@ client.on("qr", (qr) => {
 client.on("ready", () => {
   console.log("✅ Bot ist bereit!");
   client.sendMessage(allowedChatId, "🤖 MTG Bot ist gestartet und bereit!");
+  client.sendMessage(allowedChatId, getHelpMessage());
   registerCardOfTheDay(client, allowedChatId, config.schedule);
 });
 
@@ -41,7 +57,6 @@ client.on("message", async (message) => {
 
   const msg = message.body.trim();
 
-  // 🔢 Antwort mit Zahl auf Vorschlagsliste
   if (/^\d+$/.test(msg)) {
     const entry = suggestionCache.get(message.from);
     if (!entry || !message.hasQuotedMsg) return;
@@ -68,23 +83,27 @@ client.on("message", async (message) => {
     return;
   }
 
-  // 📦 Suche nach [[...]] Einträgen
   const matches = msg.match(/\[\[([^\[\]]+)\]\]/g);
   if (!matches) return;
 
-  const items = matches.map((m) =>
-    m.replace("[[", "").replace("]]", "").trim()
-  );
+  const items = matches.map((m) => m.replace("[[", "").replace("]]", "").trim());
 
   for (const item of items) {
-    if (item.toLowerCase() === "test") {
+    const lower = item.toLowerCase();
+
+    if (lower === "test") {
       await __testOnly_sendCardOfTheDay(client, allowedChatId);
       continue;
     }
 
-    if (item.toLowerCase() === "random") {
+    if (lower === "random") {
       const card = await getRandomCard();
       await sendCardImage(message, card);
+      continue;
+    }
+
+    if (["help", "hilfe"].includes(lower)) {
+      await message.reply(getHelpMessage());
       continue;
     }
 
@@ -105,11 +124,7 @@ client.on("message", async (message) => {
           `❌ Karte nicht gefunden. Meintest du:\n${formatted}\n\nAntwort mit einer Zahl (1–${suggestionsArray.length}), **als Antwort auf diese Nachricht**.`
         );
 
-        suggestionCache.set(
-          message.from,
-          suggestionsArray,
-          sent.id._serialized
-        );
+        suggestionCache.set(message.from, suggestionsArray, sent.id._serialized);
       } else {
         await message.reply(`❌ Karte nicht gefunden: ${item}`);
       }
@@ -122,16 +137,12 @@ client.on("message", async (message) => {
 
 async function getCardFromScryfall(cardName) {
   try {
-    const url = `https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(
-      cardName
-    )}`;
+    const url = `https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(cardName)}`;
     const res = await axios.get(url);
     return res.data;
   } catch (err) {
     if (err.response?.status === 404) {
-      const searchUrl = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(
-        cardName
-      )}`;
+      const searchUrl = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(cardName)}`;
       const res = await axios.get(searchUrl);
       const suggestions = res.data.data
         ?.map((card) => `- ${card.name}`)
@@ -145,17 +156,14 @@ async function getCardFromScryfall(cardName) {
 }
 
 async function getRandomCard() {
-  const res = await axios.get(
-    "https://api.scryfall.com/cards/random?q=game:paper+lang:en+-type:basic+-set:unh+-set:ugl+-set:ust+-set:unf"
-  );
+  const res = await axios.get("https://api.scryfall.com/cards/random?q=game:paper+lang:en+-type:basic+-set:unh+-set:ugl+-set:ust+-set:unf");
   return res.data;
 }
 
 async function sendCardImage(message, cardData) {
   const prices = [];
   if (cardData.prices.eur) prices.push(`💶 €${cardData.prices.eur}`);
-  if (cardData.prices.eur_foil)
-    prices.push(`✨ Foil: €${cardData.prices.eur_foil}`);
+  if (cardData.prices.eur_foil) prices.push(`✨ Foil: €${cardData.prices.eur_foil}`);
   const caption = `${prices.join(" / ")}\n\n🔗 ${cardData.scryfall_uri}`;
 
   if (cardData.image_uris) {
