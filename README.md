@@ -39,8 +39,8 @@ I love [[Forest]] and [[Lightning Helix]]
 ```
 [[Lightnig Boltt]] → Bot replies:
 
-1. Lightning Bolt  
-2. Lightning Strike  
+1. Lightning Bolt
+2. Lightning Strike
 ...
 
 Just reply with 1, 2 or 3 – **as a reply to the bot's message!**
@@ -139,3 +139,8 @@ npm test
 > Developed by **Karl v. Bonin**  
 > © CodeLax IT GmbH – 2025  
 > Free for personal / community use. No commercial redistribution.
+
+This project is licensed under the  
+**Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)** license.
+
+[View full license ➜](https://creativecommons.org/licenses/by-nc-sa/4.0/)

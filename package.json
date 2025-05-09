@@ -1,6 +1,6 @@
 {
   "name": "mtg-whatsapp-bot",
-  "version": "1.0.0",
+  "version": "0.0.5",
   "description": "Fetch MTG cards from Scryfall and send them via WhatsApp using whatsapp-web.js",
   "main": "index.js",
   "scripts": {
